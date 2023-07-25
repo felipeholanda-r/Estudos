@@ -3,6 +3,9 @@ import socket
 import whois
 import speedtest
 import json
+import nmap
+import ipaddress
+import netifaces
 
 
 def obter_ip_publico():
@@ -34,19 +37,46 @@ def teste_upload():
 
     return round(upload_speed, 2)
 
-if __name__ == '__main__':
-    ip_publico = obter_ip_publico()
-    provedor_internet = obter_provedor_internet(ip_publico)
-    download = teste_dowload()
-    upload = teste_upload()
+# Função para obter a lista de dispositivos conectados na rede com IP, MAC e Fabricante
+def informacoes_rede(rede_cidr):
+    nm = nmap.PortScanner()
+    nm.scan(hosts=rede_cidr, arguments='-sn')
+    result = nm.analyse_nmap_xml_scan()
+    
+    scan = {'uphosts': int(result['nmap']['scanstats']['uphosts']), 
+            'downhosts': int(result['nmap']['scanstats']['downhosts']), 
+            'totalhosts': int(result['nmap']['scanstats']['totalhosts'])}
 
-    dados = {
-        'ip_publico' : ip_publico,
-        'provedor' : provedor_internet,
-        'download' : download,
-        'upload' : upload
-        }
-    
-    dados_json = json.dumps(dados, indent=4)
-    
-    print(dados_json)
+    return scan
+
+# Função para obter o IP e máscara de rede no padrão CIDR (0.0.0.0/0)
+def busca_rede(ip_address, netmask):
+    endereco_ip = ip_address
+    mascara_subrede = netmask
+
+    rede_cidr = ipaddress.IPv4Network(f'{endereco_ip}/{mascara_subrede}', strict=False).with_prefixlen
+
+    return rede_cidr
+
+# Função para obter o IP da rede local e a máscara de rede
+def obter_ip_local():
+    interfaces = netifaces.interfaces()
+    for interface in interfaces:
+        if interface != 'lo':
+            enderecos = netifaces.ifaddresses(interface).get(netifaces.AF_INET)
+            if enderecos:
+                for endereco in enderecos:
+                    ip = endereco['addr']
+                    mascara = endereco['netmask']
+                    return ip, mascara
+
+if __name__ == '__main__':
+    # Obtém o IP local e a máscara de rede
+    ip_local, mascara_rede = obter_ip_local()
+
+    #Obter ip e mascara no padrão CIDR
+    rede_cidr = busca_rede(ip_local, mascara_rede)
+
+    dispositivos_conectados = buscar_dispositivos_conectados(rede_cidr)
+
+    print(json.dumps(dispositivos_conectados))
