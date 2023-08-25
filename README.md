@@ -1,1 +1,2 @@
-Projetos realizados nos estudos e cursos
+# Info
+Repositório dedicado a projetos e testes.
